@@ -1,0 +1,21 @@
+<svg width="40" height="24" viewBox="0 0 40 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7367F0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#9C88FF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- S Letter with modern design -->
+  <g transform="translate(8, 4)">
+    <path d="M0 0 L16 0 L16 4 L4 4 L4 6 L12 6 L12 10 L0 10 L0 6 L12 6 L12 4 L0 4 Z" 
+          fill="url(#sGradient)" 
+          stroke="url(#sGradient)" 
+          stroke-width="0.5"/>
+  </g>
+  
+  <!-- Decorative elements -->
+  <circle cx="2" cy="6" r="1" fill="url(#sGradient)" opacity="0.6"/>
+  <circle cx="38" cy="18" r="1.5" fill="url(#sGradient)" opacity="0.4"/>
+  <circle cx="6" cy="20" r="0.8" fill="url(#sGradient)" opacity="0.3"/>
+</svg>
