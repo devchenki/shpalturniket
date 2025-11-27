@@ -28,6 +28,9 @@ export interface Device {
   status?: 'online' | 'offline' | 'warning' | 'unknown'
   response_ms?: number
   last_check?: string
+  enabled?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface DeviceStats {

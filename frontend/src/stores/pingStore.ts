@@ -105,6 +105,16 @@ export const usePingStore = defineStore('ping', () => {
     return Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
   })
 
+  // Устройства включенные
+  const enabledDevices = computed(() => 
+    devices.value.filter(d => d.enabled !== false)
+  )
+
+  // Устройства выключенные
+  const disabledDevices = computed(() => 
+    devices.value.filter(d => d.enabled === false)
+  )
+
   // ============= Действия для устройств =============
 
   // Загрузить все устройства
@@ -176,6 +186,22 @@ export const usePingStore = defineStore('ping', () => {
       devices.value = devices.value.filter(d => d.id !== id)
     } catch (error) {
       console.error('Ошибка удаления устройства:', error)
+      throw error
+    }
+  }
+
+  // Переключить enabled для устройства
+  async function toggleDeviceEnabled(id: number, enabled: boolean) {
+    try {
+      const updatedDevice = await updateDevice(id, { enabled })
+      notifications.success(
+        enabled ? 'Устройство включено' : 'Устройство выключено',
+        `${updatedDevice.device_id} ${enabled ? 'включено в мониторинг' : 'исключено из мониторинга'}`
+      )
+      return updatedDevice
+    } catch (error) {
+      console.error('Ошибка переключения устройства:', error)
+      notifications.error('Ошибка', 'Не удалось изменить статус устройства')
       throw error
     }
   }
@@ -803,6 +829,8 @@ export const usePingStore = defineStore('ping', () => {
     warningDevices,
     availabilityPercentage,
     averageResponseTime,
+    enabledDevices,
+    disabledDevices,
     categories,
 
     // Действия
@@ -810,6 +838,7 @@ export const usePingStore = defineStore('ping', () => {
     createDevice,
     updateDevice,
     deleteDevice,
+    toggleDeviceEnabled,
     pingAllDevices,
     pingDevice,
     loadTelegramStatus,
