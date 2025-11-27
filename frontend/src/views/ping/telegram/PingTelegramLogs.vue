@@ -210,4 +210,9 @@ onUnmounted(() => {
 }
 
 .log-success {
-  color: rgb(v
+  color: rgb(var(--v-theme-success));
+  background-color: rgba(var(--v-theme-success), 0.05);
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+</style>
