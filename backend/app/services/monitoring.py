@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class DeviceMonitor:
-    """Монитор отдельного устройства"""
+    """Монитор отдельного устройства с улучшенной детекцией изменений"""
     
     def __init__(self, device_id: str, ip: str, description: str = ""):
         self.device_id = device_id
@@ -31,6 +31,11 @@ class DeviceMonitor:
         self.response_time = None
         self.consecutive_failures = 0
         self.consecutive_successes = 0
+        
+        # Улучшенная детекция изменений (debounce/hysteresis)
+        self.last_status_change = None
+        self.status_change_min_interval = 60  # Минимум 60 секунд между уведомлениями
+        self.flapping_detection = False  # Детекция нестабильного устройства
         
     async def ping(self) -> Dict[str, any]:
         """Выполнить пинг устройства"""
@@ -60,13 +65,50 @@ class DeviceMonitor:
                 self.consecutive_successes = 0
                 self.consecutive_failures += 1
             
-            # Уведомляем об изменении статуса только если статус действительно изменился
+            # Детекция flapping (нестабильное устройство)
+            if self.consecutive_failures > 0 and self.consecutive_successes > 0:
+                if self.consecutive_failures + self.consecutive_successes > 10:
+                    self.flapping_detection = True
+                    logger.warning(
+                        f"Устройство {self.device_id} нестабильно (flapping), "
+                        f"уведомления приглушены"
+                    )
+            else:
+                self.flapping_detection = False
+            
+            # УЛУЧШЕННАЯ ЛОГИКА: уведомляем только при значимых изменениях
+            should_notify = False
+            now = datetime.utcnow()
+            
             if old_status != new_status and old_status != "unknown":
-                await device_event_manager.device_status_changed(
-                    self.device_id, old_status, new_status, 
-                    self.ip, self.response_time
-                )
-                logger.info(f"Устройство {self.device_id} ({self.ip}): {old_status} -> {new_status}")
+                # Проверяем минимальный интервал между уведомлениями
+                if self.last_status_change is None:
+                    should_notify = True
+                else:
+                    time_since_last_change = (now - self.last_status_change).total_seconds()
+                    if time_since_last_change >= self.status_change_min_interval:
+                        should_notify = True
+                    else:
+                        logger.debug(
+                            f"Устройство {self.device_id}: изменение статуса подавлено "
+                            f"(debounce {time_since_last_change:.0f}s < {self.status_change_min_interval}s)"
+                        )
+                
+                # Для flapping устройств уведомляем только после стабилизации
+                if self.flapping_detection:
+                    if self.consecutive_failures >= 5 or self.consecutive_successes >= 5:
+                        should_notify = True
+                        self.flapping_detection = False
+                    else:
+                        should_notify = False
+                
+                if should_notify:
+                    await device_event_manager.device_status_changed(
+                        self.device_id, old_status, new_status, 
+                        self.ip, self.response_time
+                    )
+                    self.last_status_change = now
+                    logger.info(f"Устройство {self.device_id} ({self.ip}): {old_status} -> {new_status}")
             
             self.current_status = new_status
             
@@ -119,7 +161,30 @@ class MonitoringService:
         self.last_config_check = None
         
     def _load_devices_from_config(self) -> List[Tuple[str, str, str]]:
-        """Загрузить устройства из IP_list.json"""
+        """Загрузить устройства из базы данных"""
+        try:
+            devices = []
+            
+            # Читаем устройства из БД
+            with next(get_session()) as session:
+                db_devices = session.exec(
+                    select(Device).where(Device.enabled == True)
+                ).all()
+                
+                for device in db_devices:
+                    devices.append((device.device_id, device.ip, device.description or ""))
+            
+            logger.info(f"Загружено {len(devices)} активных устройств из БД")
+            return devices
+            
+        except Exception as e:
+            logger.error(f"Ошибка загрузки устройств из БД: {e}")
+            # Fallback на JSON если БД недоступна
+            logger.warning("Пытаемся загрузить из IP_list.json как fallback")
+            return self._load_devices_from_json_fallback()
+    
+    def _load_devices_from_json_fallback(self) -> List[Tuple[str, str, str]]:
+        """Fallback: загрузить устройства из IP_list.json если БД недоступна"""
         try:
             BASE_DIR = Path(__file__).parent.parent.parent.parent
             ip_list_path = BASE_DIR / "IP_list.json"
@@ -136,7 +201,7 @@ class MonitoringService:
                 if isinstance(device_info, list) and len(device_info) >= 2:
                     ip = device_info[0]
                     description = device_info[1]
-                    # Проверяем, что устройство включено (если есть 3-й параметр)
+                    # Проверяем, что устройство включено
                     enabled = True
                     if len(device_info) >= 3:
                         try:
@@ -147,11 +212,11 @@ class MonitoringService:
                     if enabled:
                         devices.append((device_id, ip, description))
             
-            logger.info(f"Загружено {len(devices)} устройств из конфигурации")
+            logger.info(f"Загружено {len(devices)} устройств из IP_list.json (fallback)")
             return devices
             
         except Exception as e:
-            logger.error(f"Ошибка загрузки конфигурации устройств: {e}")
+            logger.error(f"Ошибка fallback загрузки из JSON: {e}")
             return []
     
     def _load_ping_interval(self) -> int:
@@ -176,25 +241,39 @@ class MonitoringService:
         return 30  # По умолчанию 30 секунд
     
     async def _update_database_status(self, results: List[Dict[str, any]]):
-        """Обновить статусы в базе данных"""
+        """Обновить статусы в базе данных (BATCH режим)"""
+        if not results:
+            return
+            
         try:
             # Используем контекстный менеджер для сессии
             with next(get_session()) as session:
+                # PHASE 1: Загружаем все устройства одним запросом
+                device_ids = [r["device_id"] for r in results]
+                existing_devices = session.exec(
+                    select(Device).where(Device.device_id.in_(device_ids))
+                ).all()
+                
+                # Создаём словарь для быстрого доступа
+                devices_map = {device.device_id: device for device in existing_devices}
+                
+                # PHASE 2: Обновляем устройства в памяти
+                devices_to_update = []
+                devices_to_create = []
+                now = datetime.utcnow()
+                
                 for result in results:
                     device_id = result["device_id"]
+                    timestamp = datetime.fromisoformat(result["timestamp"].replace('Z', '+00:00'))
                     
-                    # Ищем устройство в БД
-                    device = session.exec(
-                        select(Device).where(Device.device_id == device_id)
-                    ).first()
-                    
-                    if device:
+                    if device_id in devices_map:
                         # Обновляем существующее устройство
+                        device = devices_map[device_id]
                         device.status = result["status"]
                         device.response_ms = result["response_time"]
-                        device.last_check = datetime.fromisoformat(result["timestamp"].replace('Z', '+00:00'))
-                        device.updated_at = datetime.utcnow()
-                        session.add(device)
+                        device.last_check = timestamp
+                        device.updated_at = now
+                        devices_to_update.append(device)
                     else:
                         # Создаем новое устройство
                         device = Device(
@@ -204,18 +283,36 @@ class MonitoringService:
                             category="Турникет",
                             status=result["status"],
                             response_ms=result["response_time"],
-                            last_check=datetime.fromisoformat(result["timestamp"].replace('Z', '+00:00'))
+                            last_check=timestamp,
+                            enabled=True
                         )
-                        session.add(device)
+                        devices_to_create.append(device)
+                
+                # PHASE 3: Batch commit - одна транзакция
+                for device in devices_to_update:
+                    session.add(device)
+                for device in devices_to_create:
+                    session.add(device)
                 
                 session.commit()
                 
+                logger.debug(
+                    f"БД обновлена (batch): {len(devices_to_update)} обновлено, "
+                    f"{len(devices_to_create)} создано"
+                )
+                
         except Exception as e:
-            logger.error(f"Ошибка обновления БД: {e}")
+            logger.error(f"Ошибка batch обновления БД: {e}")
     
     async def _monitoring_loop(self):
-        """Основной цикл мониторинга"""
-        logger.info("Запуск цикла мониторинга")
+        """
+        Основной цикл мониторинга с разделением на фазы:
+        PHASE 1: Параллельный ping всех устройств
+        PHASE 2: Batch update БД
+        PHASE 3: Синхронизация мониторов
+        PHASE 4: Emit SSE events
+        """
+        logger.info("Запуск цикла мониторинга (оптимизированный)")
         
         while self.is_running:
             try:
@@ -227,34 +324,75 @@ class MonitoringService:
                     await self._reload_configuration()
                     self.last_config_check = now
                 
-                # Выполняем пинг всех устройств
-                if self.monitors:
-                    logger.debug(f"Выполнение пинга {len(self.monitors)} устройств")
-                    
-                    # Запускаем все пинги параллельно
-                    ping_tasks = [monitor.ping() for monitor in self.monitors.values()]
-                    results = await asyncio.gather(*ping_tasks, return_exceptions=True)
-                    
-                    # Фильтруем успешные результаты
-                    valid_results = []
-                    for result in results:
-                        if isinstance(result, dict):
-                            valid_results.append(result)
-                        else:
-                            logger.error(f"Ошибка пинга: {result}")
-                    
-                    # Обновляем БД
-                    if valid_results:
-                        await self._update_database_status(valid_results)
-                        
-                        # Отправляем событие о завершении пинга
-                        await device_event_manager.ping_completed(valid_results)
-                    
-                    # Статистика
-                    online_count = sum(1 for r in valid_results if r["status"] == "online")
-                    offline_count = len(valid_results) - online_count
-                    
-                    logger.debug(f"Пинг завершен: {online_count} онлайн, {offline_count} офлайн")
+                if not self.monitors:
+                    await asyncio.sleep(self.ping_interval)
+                    continue
+                
+                # ============ PHASE 1: Параллельный ping ============
+                logger.debug(f"Phase 1: Пинг {len(self.monitors)} устройств...")
+                ping_start = asyncio.get_event_loop().time()
+                
+                ping_tasks = [monitor.ping() for monitor in self.monitors.values()]
+                results = await asyncio.gather(*ping_tasks, return_exceptions=True)
+                
+                ping_duration = asyncio.get_event_loop().time() - ping_start
+                
+                # Фильтруем успешные результаты
+                valid_results = []
+                errors_count = 0
+                for result in results:
+                    if isinstance(result, dict):
+                        valid_results.append(result)
+                    else:
+                        errors_count += 1
+                        logger.error(f"Ошибка пинга: {result}")
+                
+                if not valid_results:
+                    logger.warning("Нет валидных результатов пинга")
+                    await asyncio.sleep(self.ping_interval)
+                    continue
+                
+                # ============ PHASE 2: Batch update БД ============
+                logger.debug(f"Phase 2: Batch обновление БД ({len(valid_results)} устройств)...")
+                db_start = asyncio.get_event_loop().time()
+                
+                await self._update_database_status(valid_results)
+                
+                db_duration = asyncio.get_event_loop().time() - db_start
+                
+                # ============ PHASE 3: Синхронизация мониторов ============
+                logger.debug("Phase 3: Синхронизация состояний мониторов...")
+                
+                # Обновляем internal state мониторов на основе результатов
+                for result in valid_results:
+                    device_id = result["device_id"]
+                    if device_id in self.monitors:
+                        monitor = self.monitors[device_id]
+                        # State уже обновлён в monitor.ping(), просто логируем
+                
+                # ============ PHASE 4: Emit events ============
+                logger.debug("Phase 4: Отправка SSE событий...")
+                events_start = asyncio.get_event_loop().time()
+                
+                # Собираем статистику
+                online_count = sum(1 for r in valid_results if r["status"] == "online")
+                offline_count = sum(1 for r in valid_results if r["status"] == "offline")
+                error_count = sum(1 for r in valid_results if r["status"] == "error")
+                
+                # Отправляем событие о завершении пинга (batch)
+                await device_event_manager.ping_completed(valid_results)
+                
+                events_duration = asyncio.get_event_loop().time() - events_start
+                
+                # Общая статистика цикла
+                total_duration = ping_duration + db_duration + events_duration
+                
+                logger.info(
+                    f"Цикл завершён: {len(valid_results)} устройств, "
+                    f"{online_count} online, {offline_count} offline, {error_count} error | "
+                    f"Timing: ping={ping_duration:.2f}s, db={db_duration:.2f}s, "
+                    f"events={events_duration:.2f}s, total={total_duration:.2f}s"
+                )
                 
                 # Ждем до следующего цикла
                 await asyncio.sleep(self.ping_interval)
@@ -263,7 +401,7 @@ class MonitoringService:
                 logger.info("Цикл мониторинга отменен")
                 break
             except Exception as e:
-                logger.error(f"Ошибка в цикле мониторинга: {e}")
+                logger.error(f"Ошибка в цикле мониторинга: {e}", exc_info=True)
                 await asyncio.sleep(5)  # Короткая пауза при ошибке
         
         logger.info("Цикл мониторинга завершен")

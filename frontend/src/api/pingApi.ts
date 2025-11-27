@@ -28,6 +28,9 @@ export interface Device {
   status?: 'online' | 'offline' | 'warning' | 'unknown'
   response_ms?: number
   last_check?: string
+  enabled?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface DeviceStats {
@@ -382,6 +385,11 @@ export const telegramApi = {
 export class EventStreamClient {
   private eventSource: EventSource | null = null
   private listeners: Map<string, Set<(data: any) => void>> = new Map()
+  private connectionStatus: 'connected' | 'disconnected' | 'reconnecting' = 'disconnected'
+  private lastHeartbeat: Date | null = null
+  private heartbeatTimeout: ReturnType<typeof setTimeout> | null = null
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 10
 
   // Подключиться к потоку событий
   connect(): void {
@@ -390,15 +398,27 @@ export class EventStreamClient {
     }
 
     try {
+      this.connectionStatus = 'reconnecting'
       this.eventSource = new EventSource(`${API_BASE_URL}/api/events/stream`)
 
       this.eventSource.onopen = () => {
         console.log('✅ SSE подключение установлено')
+        this.connectionStatus = 'connected'
+        this.reconnectAttempts = 0
+        this.emit('connection_status', { status: 'connected' })
+        this.startHeartbeatMonitor()
       }
 
       this.eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
+          
+          // Обрабатываем heartbeat отдельно
+          if (data.type === 'heartbeat') {
+            this.handleHeartbeat(data)
+            return
+          }
+          
           this.emit(data.type || 'message', data)
         } catch (error) {
           console.error('Ошибка парсинга SSE сообщения:', error)
@@ -407,16 +427,72 @@ export class EventStreamClient {
 
       this.eventSource.onerror = (error) => {
         console.error('Ошибка SSE соединения:', error)
-        // Переподключение через 5 секунд
-        setTimeout(() => {
-          if (this.eventSource?.readyState === EventSource.CLOSED) {
-            this.connect()
-          }
-        }, 5000)
+        this.connectionStatus = 'disconnected'
+        this.emit('connection_status', { status: 'disconnected' })
+        this.stopHeartbeatMonitor()
+        
+        // Exponential backoff для переподключения
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
+          this.reconnectAttempts++
+          
+          console.log(`🔄 Переподключение через ${delay}ms (попытка ${this.reconnectAttempts})`)
+          
+          setTimeout(() => {
+            if (this.eventSource?.readyState === EventSource.CLOSED) {
+              this.connect()
+            }
+          }, delay)
+        } else {
+          console.error('❌ Превышено максимальное количество попыток переподключения')
+          this.emit('connection_status', { status: 'failed' })
+        }
       }
     } catch (error) {
       console.error('Ошибка создания SSE соединения:', error)
+      this.connectionStatus = 'disconnected'
     }
+  }
+
+  private handleHeartbeat(data: any) {
+    this.lastHeartbeat = new Date()
+    this.emit('heartbeat', data)
+  }
+
+  private startHeartbeatMonitor() {
+    this.stopHeartbeatMonitor()
+    
+    // Проверяем heartbeat каждые 20 секунд (сервер отправляет каждые 15)
+    this.heartbeatTimeout = setTimeout(() => {
+      const now = new Date()
+      if (this.lastHeartbeat) {
+        const timeSinceHeartbeat = now.getTime() - this.lastHeartbeat.getTime()
+        
+        // Если heartbeat не приходил более 30 секунд - соединение потеряно
+        if (timeSinceHeartbeat > 30000) {
+          console.warn('⚠️ Heartbeat timeout, reconnecting...')
+          this.connectionStatus = 'disconnected'
+          this.emit('connection_status', { status: 'timeout' })
+          this.disconnect()
+          this.connect()
+        } else {
+          this.startHeartbeatMonitor()
+        }
+      } else {
+        this.startHeartbeatMonitor()
+      }
+    }, 20000)
+  }
+
+  private stopHeartbeatMonitor() {
+    if (this.heartbeatTimeout) {
+      clearTimeout(this.heartbeatTimeout)
+      this.heartbeatTimeout = null
+    }
+  }
+
+  getConnectionStatus() {
+    return this.connectionStatus
   }
 
   // Отключиться от потока событий

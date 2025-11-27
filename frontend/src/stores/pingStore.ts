@@ -38,6 +38,8 @@ export const usePingStore = defineStore('ping', () => {
   
   const recentEvents = ref<any[]>([])
   const isConnectedToEvents = ref(false)
+  const connectionStatus = ref<'connected' | 'disconnected' | 'reconnecting' | 'failed'>('disconnected')
+  const lastHeartbeat = ref<Date | null>(null)
 
   // ============= Состояние конфигурации =============
   
@@ -104,6 +106,16 @@ export const usePingStore = defineStore('ping', () => {
     if (responseTimes.length === 0) return 0
     return Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
   })
+
+  // Устройства включенные
+  const enabledDevices = computed(() => 
+    devices.value.filter(d => d.enabled !== false)
+  )
+
+  // Устройства выключенные
+  const disabledDevices = computed(() => 
+    devices.value.filter(d => d.enabled === false)
+  )
 
   // ============= Действия для устройств =============
 
@@ -176,6 +188,22 @@ export const usePingStore = defineStore('ping', () => {
       devices.value = devices.value.filter(d => d.id !== id)
     } catch (error) {
       console.error('Ошибка удаления устройства:', error)
+      throw error
+    }
+  }
+
+  // Переключить enabled для устройства
+  async function toggleDeviceEnabled(id: number, enabled: boolean) {
+    try {
+      const updatedDevice = await updateDevice(id, { enabled })
+      notifications.success(
+        enabled ? 'Устройство включено' : 'Устройство выключено',
+        `${updatedDevice.device_id} ${enabled ? 'включено в мониторинг' : 'исключено из мониторинга'}`
+      )
+      return updatedDevice
+    } catch (error) {
+      console.error('Ошибка переключения устройства:', error)
+      notifications.error('Ошибка', 'Не удалось изменить статус устройства')
       throw error
     }
   }
@@ -367,6 +395,23 @@ export const usePingStore = defineStore('ping', () => {
 
     eventStream.connect()
     isConnectedToEvents.value = true
+
+    // Подписываемся на статус соединения
+    eventStream.on('connection_status', (data) => {
+      connectionStatus.value = data.status
+      if (data.status === 'connected') {
+        notifications.success('Подключение восстановлено', 'Соединение с сервером установлено')
+      } else if (data.status === 'disconnected' || data.status === 'timeout') {
+        notifications.warning('Потеряно соединение', 'Переподключение к серверу...')
+      } else if (data.status === 'failed') {
+        notifications.error('Ошибка соединения', 'Не удалось подключиться к серверу')
+      }
+    })
+
+    // Подписываемся на heartbeat
+    eventStream.on('heartbeat', (data) => {
+      lastHeartbeat.value = new Date()
+    })
 
     // Подписываемся на события изменения статуса устройств
     eventStream.on('device_status', (event) => {
@@ -786,6 +831,8 @@ export const usePingStore = defineStore('ping', () => {
     telegramLoading,
     recentEvents,
     isConnectedToEvents,
+    connectionStatus,
+    lastHeartbeat,
     configDevices,
     botConfig,
     configLoading,
@@ -803,6 +850,8 @@ export const usePingStore = defineStore('ping', () => {
     warningDevices,
     availabilityPercentage,
     averageResponseTime,
+    enabledDevices,
+    disabledDevices,
     categories,
 
     // Действия
@@ -810,6 +859,7 @@ export const usePingStore = defineStore('ping', () => {
     createDevice,
     updateDevice,
     deleteDevice,
+    toggleDeviceEnabled,
     pingAllDevices,
     pingDevice,
     loadTelegramStatus,

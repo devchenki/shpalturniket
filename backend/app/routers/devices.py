@@ -35,10 +35,18 @@ async def create_device(device_data: DeviceCreate, session: Session = Depends(ge
         description=device_data.description,
         category=device_data.category,
         status="unknown",
+        enabled=device_data.enabled,
     )
     session.add(device)
     session.commit()
     session.refresh(device)
+    
+    # Если мониторинг активен, перезагружаем конфигурацию
+    from ..services.monitoring import monitoring_service
+    if monitoring_service.is_running:
+        import asyncio
+        asyncio.create_task(monitoring_service._reload_configuration())
+    
     return device
 
 
@@ -57,6 +65,10 @@ async def update_device(device_id: int, updates: DeviceUpdate, session: Session 
         raise HTTPException(status_code=404, detail="Устройство не найдено")
 
     update_data = updates.dict(exclude_unset=True)
+    
+    # Проверяем изменились ли критичные поля (enabled, ip, device_id)
+    needs_reload = any(field in update_data for field in ['enabled', 'ip'])
+    
     for field, value in update_data.items():
         setattr(device, field, value)
     device.updated_at = datetime.utcnow()
@@ -64,6 +76,14 @@ async def update_device(device_id: int, updates: DeviceUpdate, session: Session 
     session.add(device)
     session.commit()
     session.refresh(device)
+    
+    # Перезагружаем мониторинг если изменились критичные поля
+    if needs_reload:
+        from ..services.monitoring import monitoring_service
+        if monitoring_service.is_running:
+            import asyncio
+            asyncio.create_task(monitoring_service._reload_configuration())
+    
     return device
 
 
@@ -75,4 +95,11 @@ async def delete_device(device_id: int, session: Session = Depends(get_session))
 
     session.delete(device)
     session.commit()
+    
+    # Перезагружаем мониторинг после удаления
+    from ..services.monitoring import monitoring_service
+    if monitoring_service.is_running:
+        import asyncio
+        asyncio.create_task(monitoring_service._reload_configuration())
+    
     return None
