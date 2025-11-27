@@ -119,7 +119,30 @@ class MonitoringService:
         self.last_config_check = None
         
     def _load_devices_from_config(self) -> List[Tuple[str, str, str]]:
-        """Загрузить устройства из IP_list.json"""
+        """Загрузить устройства из базы данных"""
+        try:
+            devices = []
+            
+            # Читаем устройства из БД
+            with next(get_session()) as session:
+                db_devices = session.exec(
+                    select(Device).where(Device.enabled == True)
+                ).all()
+                
+                for device in db_devices:
+                    devices.append((device.device_id, device.ip, device.description or ""))
+            
+            logger.info(f"Загружено {len(devices)} активных устройств из БД")
+            return devices
+            
+        except Exception as e:
+            logger.error(f"Ошибка загрузки устройств из БД: {e}")
+            # Fallback на JSON если БД недоступна
+            logger.warning("Пытаемся загрузить из IP_list.json как fallback")
+            return self._load_devices_from_json_fallback()
+    
+    def _load_devices_from_json_fallback(self) -> List[Tuple[str, str, str]]:
+        """Fallback: загрузить устройства из IP_list.json если БД недоступна"""
         try:
             BASE_DIR = Path(__file__).parent.parent.parent.parent
             ip_list_path = BASE_DIR / "IP_list.json"
@@ -136,7 +159,7 @@ class MonitoringService:
                 if isinstance(device_info, list) and len(device_info) >= 2:
                     ip = device_info[0]
                     description = device_info[1]
-                    # Проверяем, что устройство включено (если есть 3-й параметр)
+                    # Проверяем, что устройство включено
                     enabled = True
                     if len(device_info) >= 3:
                         try:
@@ -147,11 +170,11 @@ class MonitoringService:
                     if enabled:
                         devices.append((device_id, ip, description))
             
-            logger.info(f"Загружено {len(devices)} устройств из конфигурации")
+            logger.info(f"Загружено {len(devices)} устройств из IP_list.json (fallback)")
             return devices
             
         except Exception as e:
-            logger.error(f"Ошибка загрузки конфигурации устройств: {e}")
+            logger.error(f"Ошибка fallback загрузки из JSON: {e}")
             return []
     
     def _load_ping_interval(self) -> int:

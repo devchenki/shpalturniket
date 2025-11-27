@@ -18,6 +18,7 @@ class Device(SQLModel, table=True):
     status: str = Field(default="unknown", max_length=20, index=True)
     response_ms: Optional[int] = Field(default=None)
     last_check: Optional[datetime] = Field(default=None)
+    enabled: bool = Field(default=True, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -29,6 +30,7 @@ class DeviceCreate(SQLModel):
     ip: str
     description: Optional[str] = None
     category: str = "Турникет"
+    enabled: bool = True
 
 
 class DeviceUpdate(SQLModel):
@@ -40,4 +42,5 @@ class DeviceUpdate(SQLModel):
     status: Optional[str] = None
     response_ms: Optional[int] = None
     last_check: Optional[datetime] = None
+    enabled: Optional[bool] = None
 
