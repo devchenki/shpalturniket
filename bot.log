@@ -38,3 +38,61 @@
 2025-09-09 15:46:12,394 - __main__ - INFO - ✅ Ping модуль загружен успешно
 2025-09-09 15:46:12,395 - __main__ - INFO - ✅ Конфигурация загружена успешно
 2025-09-09 15:46:12,535 - __main__ - INFO - 📋 Загружено 36 устройств из конфигурации
+2025-11-27 14:09:08,459 - bot_error_handler - INFO - Ping module loaded successfully [system]
+2025-11-27 14:09:08,460 - bot_error_handler - INFO - Configuration loaded successfully [system] [time_connect=50, chat_ids_count=3]
+2025-11-27 14:09:08,480 - bot_error_handler - INFO - Loaded 36 devices from configuration [system] [devices_count=36]
+2025-11-27 14:09:08,480 - bot_error_handler - INFO - Organized devices into 3 categories [system] [categories_count=3]
+2025-11-27 14:09:08,480 - bot_error_handler - INFO - Bot initialized with 36 devices in 3 categories [system] [devices_count=36, categories_count=3]
+2025-11-27 14:09:08,481 - bot_error_handler - INFO - Registered shutdown task: stop_bot_polling [system] [priority=0, timeout=10.0, critical=True]
+2025-11-27 14:09:08,481 - bot_error_handler - INFO - Registered shutdown task: send_shutdown_notification [system] [priority=5, timeout=15.0, critical=False]
+2025-11-27 14:09:08,481 - bot_error_handler - INFO - Registered shutdown task: cleanup_bot_session [system] [priority=10, timeout=10.0, critical=True]
+2025-11-27 14:09:08,481 - bot_error_handler - INFO - Registered shutdown task: log_final_statistics [system] [priority=15, timeout=5.0, critical=False]
+2025-11-27 14:10:21,314 - bot_error_handler - INFO - Ping module loaded successfully [system]
+2025-11-27 14:10:21,314 - bot_error_handler - INFO - Configuration loaded successfully [system] [time_connect=50, chat_ids_count=3]
+2025-11-27 14:10:21,336 - bot_error_handler - INFO - Loaded 36 devices from configuration [system] [devices_count=36]
+2025-11-27 14:10:21,336 - bot_error_handler - INFO - Organized devices into 3 categories [system] [categories_count=3]
+2025-11-27 14:10:21,336 - bot_error_handler - INFO - Bot initialized with 36 devices in 3 categories [system] [devices_count=36, categories_count=3]
+2025-11-27 14:10:21,336 - bot_error_handler - INFO - Registered shutdown task: stop_bot_polling [system] [priority=0, timeout=10.0, critical=True]
+2025-11-27 14:10:21,337 - bot_error_handler - INFO - Registered shutdown task: send_shutdown_notification [system] [priority=5, timeout=15.0, critical=False]
+2025-11-27 14:10:21,337 - bot_error_handler - INFO - Registered shutdown task: cleanup_bot_session [system] [priority=10, timeout=10.0, critical=True]
+2025-11-27 14:10:21,337 - bot_error_handler - INFO - Registered shutdown task: log_final_statistics [system] [priority=15, timeout=5.0, critical=False]
+2025-11-27 14:10:21,337 - bot_error_handler - INFO - Starting modern TurboShpalych Pro bot... [system] [startup_time=2025-11-27T14:10:21.337247]
+2025-11-27 14:10:21,337 - bot_error_handler - INFO - Signal handlers registered [system]
+2025-11-27 14:10:21,705 - bot_error_handler - INFO - Webhook disabled (switching to long polling) [telegram_api]
+2025-11-27 14:10:21,830 - bot_error_handler - INFO - Telegram bot commands set successfully [telegram_api]
+2025-11-27 14:10:29,845 - bot_error_handler - INFO - Initiating shutdown: signal_terminate [system] [Severity:medium] [reason=signal_terminate, timeout=60.0, tasks_count=4]
+2025-11-27 14:10:29,845 - bot_error_handler - INFO - Performing pre-shutdown actions... [system]
+2025-11-27 14:10:29,845 - bot_error_handler - INFO - Executing 4 shutdown tasks [system]
+2025-11-27 14:10:29,846 - bot_error_handler - INFO - Executing shutdown task: stop_bot_polling [system] [priority=0, timeout=10.0, critical=True]
+2025-11-27 14:10:29,846 - bot_error_handler - INFO - Stopping bot polling... [system]
+2025-11-27 14:10:29,846 - bot_error_handler - INFO - Shutdown task completed: stop_bot_polling [system]
+2025-11-27 14:10:29,846 - bot_error_handler - INFO - Executing shutdown task: send_shutdown_notification [system] [priority=5, timeout=15.0, critical=False]
+2025-11-27 14:10:30,000 - bot_error_handler - WARNING - Chat not found for user None [telegram_api] [Severity:medium]
+2025-11-27 14:10:30,006 - bot_error_handler - ERROR - Telegram error: TelegramBadRequest: Telegram server says - Bad Request: chat not found [telegram_api] [Severity:medium] [message_type=unknown, message_id=None, operation=send_alert, chat_id=519434051]
+2025-11-27 14:10:30,155 - bot_error_handler - WARNING - Chat not found for user None [telegram_api] [Severity:medium]
+2025-11-27 14:10:30,157 - bot_error_handler - ERROR - Telegram error: TelegramBadRequest: Telegram server says - Bad Request: chat not found [telegram_api] [Severity:medium] [message_type=unknown, message_id=None, operation=send_alert, chat_id=329051835]
+2025-11-27 14:10:30,303 - bot_error_handler - WARNING - Chat not found for user None [telegram_api] [Severity:medium]
+2025-11-27 14:10:30,304 - bot_error_handler - ERROR - Telegram error: TelegramBadRequest: Telegram server says - Bad Request: chat not found [telegram_api] [Severity:medium] [message_type=unknown, message_id=None, operation=send_alert, chat_id=812582329]
+2025-11-27 14:10:30,304 - bot_error_handler - INFO - Shutdown task completed: send_shutdown_notification [system]
+2025-11-27 14:10:30,304 - bot_error_handler - INFO - Executing shutdown task: cleanup_bot_session [system] [priority=10, timeout=10.0, critical=True]
+2025-11-27 14:10:30,555 - bot_error_handler - INFO - Bot session closed [system]
+2025-11-27 14:10:30,556 - bot_error_handler - INFO - Shutdown task completed: cleanup_bot_session [system]
+2025-11-27 14:10:30,556 - bot_error_handler - INFO - Executing shutdown task: log_final_statistics [system] [priority=15, timeout=5.0, critical=False]
+2025-11-27 14:10:30,556 - bot_error_handler - INFO - Final bot statistics [system] [monitoring={'checks_performed': 12, 'failures': 12, 'failure_rate': 100.0, 'average_response_time': 5.089821086833335, 'cache': {'hits': 0, 'misses': 0, 'evictions': 0, 'total_entries': 12, 'hit_rate': 0}}, error_handler={'handled_errors': 3, 'retries_attempted': 0, 'retries_successful': 0, 'retry_success_rate': 0}, shutdown={'is_shutting_down': True, 'shutdown_reason': 'signal_terminate', 'shutdown_start_time': '2025-11-27T14:10:29.844998', 'shutdown_duration': 0.71127, 'completed_tasks': 3, 'failed_tasks': 0, 'skipped_tasks': 0, 'total_tasks': 4, 'running_tasks': 0, 'shutdown_requested': True}]
+2025-11-27 14:10:30,556 - bot_error_handler - INFO - Shutdown task completed: log_final_statistics [system]
+2025-11-27 14:10:30,556 - bot_error_handler - INFO - Post-shutdown actions completed [system]
+2025-11-27 14:10:30,556 - bot_error_handler - INFO - Shutdown completed [system] [reason=signal_terminate, completed_tasks=4, failed_tasks=0, skipped_tasks=0, duration=0.711395]
+2025-11-27 14:10:46,871 - bot_error_handler - ERROR - Error building startup summary: 'MonitoringStats' object is not subscriptable [system]
+2025-11-27 14:10:46,872 - bot_error_handler - INFO - Startup checks completed successfully [system] [devices_checked=36, summary_messages=0]
+2025-11-27 14:10:46,872 - bot_error_handler - INFO - Telegram bot started and ready to work! [system]
+2025-11-27 14:10:46,872 - bot_error_handler - INFO - Send /start in Telegram to begin [system]
+2025-11-27 14:10:46,872 - bot_error_handler - INFO - Shutdown request received, stopping polling... [system]
+2025-11-27 14:10:59,014 - __main__ - INFO - ✅ Ping модуль загружен успешно
+2025-11-27 14:10:59,014 - __main__ - INFO - ✅ Конфигурация загружена успешно
+2025-11-27 14:10:59,037 - __main__ - INFO - 📋 Загружено 36 устройств из конфигурации
+2025-11-27 14:10:59,037 - __main__ - INFO - ✅ Бот инициализирован с 36 устройствами в 3 категориях
+2025-11-27 14:10:59,038 - __main__ - INFO - 🚀 Запуск современного TurboShpalych Pro бота...
+2025-11-27 14:10:59,414 - __main__ - INFO - 🌐 Вебхук отключен (переходим на long polling)
+2025-11-27 14:10:59,545 - __main__ - INFO - 📋 Команды Telegram бота установлены
+2025-11-27 14:10:59,545 - __main__ - INFO - ✅ Telegram бот успешно запущен и готов к работе!
+2025-11-27 14:10:59,545 - __main__ - INFO - 📱 Отправьте /start в Telegram для начала работы
