@@ -140,11 +140,13 @@ device_event_manager = DeviceEventManager(event_manager)
 
 
 class SSEResponse:
-    """Класс для Server-Sent Events ответов"""
+    """Класс для Server-Sent Events ответов с heartbeat"""
     
     def __init__(self):
         self.queue = asyncio.Queue()
         self.connected = True
+        self.last_heartbeat = datetime.utcnow()
+        self.heartbeat_interval = 15  # Heartbeat каждые 15 секунд
         
     async def send_event(self, event: Dict[str, Any]):
         """Отправить событие клиенту"""
@@ -160,6 +162,24 @@ class SSEResponse:
             logger.error(f"Ошибка отправки SSE события: {e}")
             self.connected = False
     
+    async def send_heartbeat(self):
+        """Отправить heartbeat клиенту"""
+        if not self.connected:
+            return
+            
+        try:
+            heartbeat_event = {
+                "type": "heartbeat",
+                "data": {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "server_time": datetime.utcnow().isoformat()
+                }
+            }
+            await self.send_event(heartbeat_event)
+            self.last_heartbeat = datetime.utcnow()
+        except Exception as e:
+            logger.error(f"Ошибка отправки heartbeat: {e}")
+    
     async def close(self):
         """Закрыть соединение"""
         self.connected = False
@@ -173,13 +193,22 @@ class SSEResponse:
             raise StopAsyncIteration
             
         try:
-            data = await asyncio.wait_for(self.queue.get(), timeout=30.0)
+            # Проверяем нужен ли heartbeat
+            now = datetime.utcnow()
+            time_since_heartbeat = (now - self.last_heartbeat).total_seconds()
+            
+            if time_since_heartbeat >= self.heartbeat_interval:
+                await self.send_heartbeat()
+            
+            # Уменьшаем timeout для более частых heartbeat
+            data = await asyncio.wait_for(self.queue.get(), timeout=self.heartbeat_interval)
             if data is None:  # Сигнал завершения
                 raise StopAsyncIteration
             return data
         except asyncio.TimeoutError:
-            # Отправляем keep-alive каждые 30 секунд
-            return ": keep-alive\n\n"
+            # Отправляем heartbeat при timeout
+            await self.send_heartbeat()
+            return ""  # Возвращаем пустую строку, heartbeat уже отправлен
         except Exception as e:
             logger.error(f"Ошибка в SSE итераторе: {e}")
             raise StopAsyncIteration

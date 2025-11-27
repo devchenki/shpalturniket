@@ -38,6 +38,8 @@ export const usePingStore = defineStore('ping', () => {
   
   const recentEvents = ref<any[]>([])
   const isConnectedToEvents = ref(false)
+  const connectionStatus = ref<'connected' | 'disconnected' | 'reconnecting' | 'failed'>('disconnected')
+  const lastHeartbeat = ref<Date | null>(null)
 
   // ============= Состояние конфигурации =============
   
@@ -393,6 +395,23 @@ export const usePingStore = defineStore('ping', () => {
 
     eventStream.connect()
     isConnectedToEvents.value = true
+
+    // Подписываемся на статус соединения
+    eventStream.on('connection_status', (data) => {
+      connectionStatus.value = data.status
+      if (data.status === 'connected') {
+        notifications.success('Подключение восстановлено', 'Соединение с сервером установлено')
+      } else if (data.status === 'disconnected' || data.status === 'timeout') {
+        notifications.warning('Потеряно соединение', 'Переподключение к серверу...')
+      } else if (data.status === 'failed') {
+        notifications.error('Ошибка соединения', 'Не удалось подключиться к серверу')
+      }
+    })
+
+    // Подписываемся на heartbeat
+    eventStream.on('heartbeat', (data) => {
+      lastHeartbeat.value = new Date()
+    })
 
     // Подписываемся на события изменения статуса устройств
     eventStream.on('device_status', (event) => {
@@ -812,6 +831,8 @@ export const usePingStore = defineStore('ping', () => {
     telegramLoading,
     recentEvents,
     isConnectedToEvents,
+    connectionStatus,
+    lastHeartbeat,
     configDevices,
     botConfig,
     configLoading,
